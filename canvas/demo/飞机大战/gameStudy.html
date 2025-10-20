@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <style type="text/css">
+    .canvasDiv {
+      margin: 0 auto;
+      width: 500px;
+    }
+  </style>
+  <body>
+    <div class="canvasDiv">
+      <canvas width="650" height="500" id="canvas"></canvas>
+    </div>
+    <script type="text/javascript">
+      /** @type {HTMLCanvasElement} */
+      var can = document.getElementById("canvas");
+
+      // =========== 资源加载 ============
+      // 自己
+      var sprite_image = new Image();
+      sprite_image.src = "./sprite.png";
+
+      // 敌人
+      var hunter1_image = new Image();
+      hunter1_image.src = "./Hunter1.png";
+
+      // 炸弹
+      var bomb_image = new Image();
+      bomb_image.src = "./bomb.png";
+
+      // 子弹
+      var bullets_image = new Image();
+      bullets_image.src = "./bullets.png";
+
+      // =========== 全局状态 ============
+      // 游戏状态
+      var game = {
+        state: "start", // start:开始 playing:启动中 won:胜利 over:死亡
+      };
+      // 游戏状态 展示标题
+      var overlay = {
+        counter: -1,
+        title: "开始",
+        subtitle: "哈哈",
+      };
+      // 敌人
+      var enemies = [];
+      // 敌方子弹
+      var enemyBullets = [];
+      // 自己
+      var II = {
+        x: 300,
+        y: 400,
+        width: 50,
+        height: 50,
+        state: "alive", // alive: 存活 hit: 击中 dead: 死亡
+      };
+      // 自己的子弹
+      var IIBullets = [];
+
+      var keyboard = [];
+
+      // =========== 游戏状态 ============
+      function updateGame() {
+        if (game.state == "playing" && enemies.length == 0) {
+          // 游戏中
+          game.state = "won";
+          overlay.title = "敌人全部消灭";
+          overlay.subtitle = "按空格键重新开始";
+          overlay.counter = 0;
+        }
+        if (game.state == "over" && keyboard[32]) {
+          // 游戏结束
+          game.state = "start";
+          II.state = "alive";
+          overlay.counter = -1;
+        }
+        if (game.state == "won" && keyboard[32]) {
+          // 游戏胜利
+          game.state = "start";
+          II.state = "alive";
+          overlay.counter = -1;
+        }
+
+        if (overlay.counter >= 0) {
+          overlay.counter++;
+        }
+      }
+
+      // 绘制 游戏 不同状态的提示
+      function drawOverlay(c) {
+        if (game.state == "over") {
+          c.fillStyle = "white";
+          c.font = "Bold 40pt Arial";
+          c.fillText("游戏结束", 225, 200);
+          c.font = "14pt Arial";
+          c.fillText("按空格键重新播放", 250, 250);
+        }
+        if (game.state == "won") {
+          c.fillStyle = "white";
+          c.font = "Bold 40pt Arial";
+          c.fillText("游戏胜利", 225, 200);
+          c.font = "14pt Arial";
+          c.fillText("按空格键重新播放", 250, 250);
+        }
+      }
+
+      // =========== 添加背景 ============
+      function drawBackground(c) {
+        c.fillStyle = "black";
+        c.fillRect(0, 0, can.width, can.height);
+      }
+
+      // =========== 敌人 ============
+      var num = 10; // 敌人数量
+      function updateEnemies() {
+        if (game.state === "start") {
+          // 每次重新开始 初始化敌人
+          enemies = []; // 清空敌人
+          enemyBullets = []; // 清空子弹
+          for (var i = 0; i < num; i++) {
+            enemies.push({
+              x: 50 + i * 50,
+              y: 10,
+              width: 40,
+              height: 40,
+              state: "alive", // alive: 存活 hit: 击中 dead: 死亡
+              counter: 0, //
+              phase: Math.floor(Math.random() * 50), // 添加子弹的时间
+              // shrink: 20,
+            });
+          }
+          game.state = "playing";
+        }
+
+        // 添加子弹
+        for (var i = 0; i < num; i++) {
+          var enemy = enemies[i];
+          if (!enemy) continue;
+
+          if (enemy && enemy.state == "alive") {
+            enemy.counter++;
+            // 敌人 位移
+            enemy.x += Math.sin((enemy.counter * Math.PI * 2) / 100) * 2;
+            // 错开 添加 子弹时间
+            if ((enemy.counter + enemy.phase) % 100 == 0) {
+              enemyBullets.push(createEnemyBullet(enemy));
+            }
+          }
+
+          // 被击中状态
+          if (enemy && enemy.state == "hit") {
+            enemy.counter++;
+
+            // 一段时间后 修改为 死亡状态
+            if (enemy.counter >= 20) {
+              enemy.state = "dead";
+              enemy.counter = 0;
+            }
+          }
+        }
+
+        // 清除死亡的敌人
+        enemies = enemies.filter(function (e) {
+          if (e && e.state != "dead") {
+            return true;
+          }
+          return false;
+        });
+      }
+
+      // 添加子弹对象
+      function createEnemyBullet(enemy) {
+        return {
+          x: enemy.x,
+          y: enemy.y + enemy.height,
+          width: 20,
+          height: 20,
+          counter: 0,
+        };
+      }
+
+      // 修改子弹位置
+      function updateEnemyBullets() {
+        for (var i in enemyBullets) {
+          var bullet = enemyBullets[i];
+          bullet.y += 2;
+          bullet.counter++;
+        }
+
+        // 超出屏幕 删除子弹
+        enemyBullets = enemyBullets.filter(function (bullet) {
+          return bullet.y < 600;
+        });
+      }
+
+      // 绘制敌人子弹
+      function drawEnemyBullets(c) {
+        for (var i in enemyBullets) {
+          var bullet = enemyBullets[i];
+          // c.fillStyle = "yellow";
+          // c.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+          // 切换 雪碧图 位置实现动画
+          var xoff = (bullet.counter % 9) * 12 + 2;
+          var yoff = 1;
+          c.drawImage(
+            bomb_image,
+            xoff,
+            yoff,
+            9,
+            10,
+            bullet.x,
+            bullet.y,
+            bullet.width,
+            bullet.height
+          );
+        }
+      }
+
+      // 绘制 敌人
+      function drawEnemies(c) {
+        for (var key in enemies) {
+          var enemy = enemies[key];
+
+          if (enemy.state === "alive") {
+            // 存活
+            c.fillStyle = "green";
+            // c.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+            c.drawImage(
+              hunter1_image,
+              25,
+              48,
+              25,
+              25,
+              enemy.x,
+              enemy.y,
+              enemy.width,
+              enemy.height //dst coords
+            );
+          }
+
+          if (enemy.state === "hit") {
+            // 击中
+            c.fillStyle = "black";
+            c.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+          }
+
+          if (enemy.state === "dead") {
+            // 死亡
+            c.fillStyle = "black";
+            c.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+          }
+        }
+      }
+
+      // =========== II ============
+
+      // 添加子弹对象
+      function fireIIBullets() {
+        IIBullets.push({
+          x: II.x + 17.5,
+          y: II.y - 7,
+          width: 15,
+          height: 15,
+          counter: 0,
+        });
+      }
+
+      // 初始自己
+      function updatePlayer() {
+        if (II.state == "dead") return;
+
+        // 左键
+        if (keyboard[37]) {
+          II.x -= 10;
+          if (II.x < 0) II.x = 0;
+        }
+        // 右键
+        if (keyboard[39]) {
+          II.x += 10;
+          var right = canvas.width - II.width;
+          if (II.x > right) II.x = right;
+        }
+
+        // 空格
+        if (keyboard[32]) {
+          if (!keyboard.fired) {
+            fireIIBullets(); // 添加子弹
+            keyboard.fired = true;
+          }
+        } else {
+          keyboard.fired = false;
+        }
+
+        if (II.state == "hit") {
+          II.counter++;
+          if (II.counter >= 40) {
+            II.counter = 0;
+            II.state = "dead";
+            game.state = "over";
+            overlay.title = "游戏结束";
+            overlay.subtitle = "按空格键重新播放";
+            overlay.counter = 0;
+          }
+        }
+      }
+
+      // 修改自己子弹的位置
+      function updateIIBullets() {
+        for (i in IIBullets) {
+          var bullet = IIBullets[i];
+          bullet.y -= 8;
+          bullet.counter++;
+        }
+        // 超出屏幕 删除子弹
+        IIBullets = IIBullets.filter(function (bullet) {
+          return bullet.y > 0;
+        });
+      }
+
+      // 绘制自己的子弹
+      function drawIIBullets(c) {
+        c.fillStyle = "blue";
+        for (i in IIBullets) {
+          var bullet = IIBullets[i];
+          // c.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+          var count = Math.floor(bullet.counter / 4);
+          var xoff = (count % 4) * 24;
+          c.drawImage(
+            bullets_image,
+            xoff + 10,
+            0 + 7.5,
+            8,
+            13,
+            bullet.x,
+            bullet.y,
+            bullet.width,
+            bullet.height //dst
+          );
+        }
+      }
+
+      // 绘制自己
+      function drawII(c) {
+        if (II.state === "alive") {
+          c.fillStyle = "red";
+          // c.fillRect(II.x, II.y, II.width, II.height);
+          c.drawImage(
+            sprite_image,
+            201,
+            0,
+            70,
+            80,
+            II.x,
+            II.y,
+            II.width,
+            II.height //dst coords
+          );
+        }
+
+        if (II.state === "hit") {
+          c.fillStyle = "black";
+          c.fillRect(II.x, II.y, II.width, II.height);
+          drawExplosion(c);
+        }
+
+        if (II.state === "dead") {
+          return;
+        }
+      }
+      // ===========  爆炸粒子模拟 ===========
+      var particles = [];
+      function drawExplosion(c) {
+        // 被击中后 计数从0开始
+        if (II.counter == 0) {
+          // 生成粒子
+          particles = [];
+          for (var i = 0; i < 50; i++) {
+            particles.push({
+              x: II.x + II.width / 2,
+              y: II.y + II.height / 2,
+              xv: (Math.random() - 0.5) * 2.0 * 5.0, // x velocity
+              yv: (Math.random() - 0.5) * 2.0 * 5.0, // y velocity
+              age: 0, // v\\\存在时间
+            });
+          }
+        }
+
+        if (II.counter > 0) {
+          for (var i = 0; i < particles.length; i++) {
+            var p = particles[i];
+            p.x += p.xv;
+            p.y += p.yv;
+            var v = 255 - p.age * 3;
+            c.fillStyle = "rgb(" + v + "," + v + "," + v + ")";
+            c.fillRect(p.x, p.y, 3, 3);
+            p.age++;
+          }
+        }
+      }
+
+      // =========== 碰撞检测 ============
+      function checkCollisions() {
+        // 自己被击中
+        for (var key in IIBullets) {
+          var bullet = IIBullets[key];
+          for (var j in enemies) {
+            var enemy = enemies[j];
+            if (collided(bullet, enemy)) {
+              bullet.state = "hit";
+              enemy.state = "hit";
+              enemy.counter = 0;
+            }
+          }
+        }
+
+        if (II.state == "hit" || II.state == "dead") return;
+
+        // 敌人被击中
+        for (var i in enemyBullets) {
+          var bullet = enemyBullets[i];
+          if (collided(bullet, II)) {
+            bullet.state = "hit";
+            II.state = "hit";
+            II.counter = 0;
+          }
+        }
+      }
+
+      /**
+       * 两物体 在画布中的判断
+       * a: 要判断的图行
+       * b: 被判断的图行
+       */
+      function collided(a, b) {
+        // 检查水平碰撞
+        // b 物体 最右边 大于 a 物体 最左边
+        // b 物体 最左边 小于 a 物体 最右边
+        if (b.x + b.width > a.x && b.x < a.x + a.width) {
+          // 检查垂直碰撞
+          if (b.y + b.height >= a.y && b.y < a.y + a.height) {
+            return true;
+          }
+        }
+
+        // a 在 b 内
+        if (b.x <= a.x && b.x + b.width >= a.x + a.width) {
+          if (b.y <= a.y && b.y + b.height >= a.y + a.height) {
+            return true;
+          }
+        }
+
+        // b 在 a 内
+        if (a.x <= b.x && a.x + a.width >= b.x + b.width) {
+          if (a.y <= b.y && a.y + a.height >= b.y + b.height) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      // =========== 键盘事件 ============
+      function doSetup() {
+        attachEvent(document, "keydown", function (e) {
+          keyboard[e.keyCode] = true;
+          console.log(keyboard);
+        });
+        attachEvent(document, "keyup", function (e) {
+          keyboard[e.keyCode] = false;
+          console.log(keyboard);
+        });
+      }
+      function attachEvent(node, name, func) {
+        if (node.addEventListener) {
+          node.addEventListener(name, func, false);
+        } else if (node.attachEvent) {
+          node.attachEvent(name, func);
+        }
+      }
+
+      // =========== 初始化 ============
+      function mainLoop() {
+        var c = can.getContext("2d");
+        // 检测游戏 状态
+        updateGame();
+        // 初始化 敌人 添加子弹 并位移
+        updateEnemies();
+        // 初始自己
+        updatePlayer();
+
+        // 修改自己子弹的位置
+        updateIIBullets();
+        // 修改敌人子弹位置
+        updateEnemyBullets();
+
+        // 检测碰撞
+        checkCollisions();
+
+        // 添加背景
+        drawBackground(c);
+        // 绘制敌人
+        drawEnemies(c);
+        // 绘制自己
+        drawII(c);
+        // 绘制敌人子弹
+        drawEnemyBullets(c);
+        // 绘制自己的子弹
+        drawIIBullets(c);
+        // 绘制 游戏 不同状态的提示
+        drawOverlay(c);
+      }
+      doSetup();
+      setInterval(mainLoop, 1000 / 30);
+      // mainLoop();
+    </script>
+  </body>
+</html>

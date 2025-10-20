@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>学习</title>
+  </head>
+  <body>
+    <canvas id="c2d" class="c2d" width="1000" height="500"></canvas>
+    <script type="module">
+      /*
+       * 模拟地球 运动
+       */
+      import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r132/build/three.module.js'
+
+      const canvas = document.querySelector('#c2d')
+      // 渲染器
+      const renderer = new THREE.WebGLRenderer({ canvas })
+
+      const fov = 40 // 视野范围
+      const aspect = 2 // 相机默认值 画布的宽高比
+      const near = 0.1 // 近平面
+      const far = 1000 // 远平面
+      // 透视投影相机
+      const camera = new THREE.PerspectiveCamera(fov, aspect, near, far)
+      console.log('🚀 ~ file: threeTest.html ~ line 25 ~ camera', camera)
+
+      // 相机位置  正上方向下看
+      camera.position.set(0, 50, 0)
+      camera.up.set(0, 0, 1)
+      camera.lookAt(0, 0, 0)
+
+      // 创建场景
+      const scene = new THREE.Scene()
+
+      const color = 0xffffff
+      const intensity = 3
+      // 创建光源
+      const light = new THREE.PointLight(color, intensity)
+      // 光源 加入场景
+      scene.add(light)
+
+      // 公用球体
+      const radius = 1 // 半径
+      const widthSegments = 6 // 经度上的切片数
+      const heightSegments = 6 // 纬度上的切片数
+      // 创建球体
+      const sphereGeometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments)
+
+      // 太阳系 局部模型
+      const solarSystem = new THREE.Object3D()
+      scene.add(solarSystem)
+
+      // 材质 emissive 不被光影响的颜色
+      const sunMaterial = new THREE.MeshPhongMaterial({ emissive: 0xffff00 })
+      // 模型
+      const sunMesh = new THREE.Mesh(sphereGeometry, sunMaterial)
+      // 放大模型
+      sunMesh.scale.set(5, 5, 5)
+      // 模型 加入场景
+      // scene.add(sunMesh)
+      solarSystem.add(sunMesh)
+
+      // 地球系 局部模型
+      const earthSystem = new THREE.Object3D()
+      earthSystem.position.x = 10
+      solarSystem.add(earthSystem)
+
+      // 材质
+      const earthMaterial = new THREE.MeshPhongMaterial({
+        color: 0x2233ff,
+        emissive: 0x112244
+      })
+      const earthMesh = new THREE.Mesh(sphereGeometry, earthMaterial)
+      // earthMesh.position.x = 10
+      // scene.add(earthMesh)
+      // sunMesh.add(earthMesh)
+      // solarSystem.add(earthMesh)
+      earthSystem.add(earthMesh)
+
+      // 月球系 局部模型
+      const moonSystem = new THREE.Object3D()
+      moonSystem.position.x = 2
+      earthSystem.add(moonSystem)
+
+      // 材质
+      const moonMaterial = new THREE.MeshPhongMaterial({ color: 0x888888, emissive: 0x222222 })
+      // 模型
+      const moonMesh = new THREE.Mesh(sphereGeometry, moonMaterial)
+      moonMesh.scale.set(0.5, 0.5, 0.5)
+      moonSystem.add(moonMesh)
+
+      // 要更新旋转角度的对象数组
+      const objects = []
+      objects.push(solarSystem)
+      // objects.push(sunMesh)
+      objects.push(earthSystem)
+      // objects.push(earthMesh)
+      objects.push(moonSystem)
+      // objects.push(moonMesh)
+
+      // 渲染器 重新调整
+      function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement
+        const width = canvas.clientWidth
+        const height = canvas.clientHeight
+        const needResize = canvas.width !== width || canvas.height !== height
+        if (needResize) {
+          renderer.setSize(width, height, false)
+        }
+        return needResize
+      }
+
+      //
+      function render(time) {
+        time *= 0.001
+
+        if (resizeRendererToDisplaySize(renderer)) {
+          // 画布大小修改后 调整 比例
+          const canvas = renderer.domElement
+          camera.aspect = canvas.clientWidth / canvas.clientHeight
+          camera.updateProjectionMatrix()
+        }
+
+        // 修改模型
+        objects.forEach((obj) => {
+          // 修改 y 角度
+          obj.rotation.y = time
+        })
+
+        // 加载渲染器
+        renderer.render(scene, camera)
+
+        // 开始动画
+        requestAnimationFrame(render)
+      }
+
+      // 开始渲染
+      requestAnimationFrame(render)
+    </script>
+  </body>
+</html>
